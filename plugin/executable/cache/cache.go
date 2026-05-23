@@ -530,19 +530,18 @@ func (c *Cache) execWithRust(ctx context.Context, qCtx *query_context.Context, n
 	}
 	if lookup.State == bridgeLookupFresh || lookup.State == bridgeLookupLazy {
 		c.hitTotal.Inc()
-		resp := new(dns.Msg)
-		if unpackErr := resp.Unpack(lookup.Response); unpackErr != nil {
-			keyBufferPool.Put(bufPtr)
-			c.logger.Warn("rust cache returned invalid response, fallback to go path", zap.Error(unpackErr))
-			return c.execWithGoFallback(ctx, qCtx, next)
-		}
-		resp.Id = q.Id
-		qCtx.SetResponse(resp)
+		qCtx.SetRawResponse(lookup.Response)
 		if lookup.DomainSet != "" {
 			qCtx.StoreValue(query_context.KeyDomainSet, lookup.DomainSet)
 		}
-		minTTL := dnsutils.GetMinimalTTL(resp)
-		shard.updateL1(k, resp, now, now.Add(time.Duration(minTTL)*time.Second), lookup.DomainSet)
+		// Decode only for L1 promotion. Response path itself stays raw to avoid per-hit unpack cost.
+		if len(lookup.Response) > 0 {
+			respForL1 := new(dns.Msg)
+			if err := respForL1.Unpack(lookup.Response); err == nil {
+				minTTL := dnsutils.GetMinimalTTL(respForL1)
+				shard.updateL1(k, respForL1, now, now.Add(time.Duration(minTTL)*time.Second), lookup.DomainSet)
+			}
+		}
 		keyBufferPool.Put(bufPtr)
 		return nil
 	}

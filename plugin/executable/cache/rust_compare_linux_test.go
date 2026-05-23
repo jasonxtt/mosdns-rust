@@ -279,7 +279,7 @@ func BenchmarkCacheExecGoHotHit(b *testing.B) {
 	if err := c.Exec(context.Background(), qWarm, sequence.ChainWalker{}); err != nil {
 		b.Fatal(err)
 	}
-	if qWarm.R() == nil {
+	if qWarm.R() == nil && len(qWarm.RawResponse()) == 0 {
 		b.Fatal("warmup miss")
 	}
 
@@ -290,7 +290,7 @@ func BenchmarkCacheExecGoHotHit(b *testing.B) {
 		if err := c.Exec(context.Background(), qCtx, sequence.ChainWalker{}); err != nil {
 			b.Fatal(err)
 		}
-		if qCtx.R() == nil {
+		if qCtx.R() == nil && len(qCtx.RawResponse()) == 0 {
 			b.Fatal("cache miss on go hot hit benchmark")
 		}
 	}
@@ -321,7 +321,7 @@ func BenchmarkCacheExecRustHotHit(b *testing.B) {
 	if err := c.Exec(context.Background(), qWarm, sequence.ChainWalker{}); err != nil {
 		b.Fatal(err)
 	}
-	if qWarm.R() == nil {
+	if qWarm.R() == nil && len(qWarm.RawResponse()) == 0 {
 		b.Fatal("warmup miss")
 	}
 
@@ -332,7 +332,7 @@ func BenchmarkCacheExecRustHotHit(b *testing.B) {
 		if err := c.Exec(context.Background(), qCtx, sequence.ChainWalker{}); err != nil {
 			b.Fatal(err)
 		}
-		if qCtx.R() == nil {
+		if qCtx.R() == nil && len(qCtx.RawResponse()) == 0 {
 			b.Fatal("cache miss on rust hot hit benchmark")
 		}
 	}

@@ -21,10 +21,13 @@ package server_handler
 
 import (
 	"context"
+	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/IrineSistiana/mosdns/v5/coremain" // ADDED: Import coremain for audit collector
 	"github.com/IrineSistiana/mosdns/v5/mlog"
+	"github.com/IrineSistiana/mosdns/v5/pkg/pool"
 	"github.com/IrineSistiana/mosdns/v5/pkg/query_context"
 	"github.com/IrineSistiana/mosdns/v5/pkg/server"
 	"github.com/IrineSistiana/mosdns/v5/pkg/utils"
@@ -122,7 +125,7 @@ func (h *EntryHandler) Handle(ctx context.Context, q *dns.Msg, serverMeta server
 		// 如果错误是 sequence.ErrExit，说明是插件主动要求退出（任务完成或拦截）
 		// 我们将其视为“无错误”，继续向下执行，尝试返回 qCtx.R()
 		if err == sequence.ErrExit {
-			err = nil 
+			err = nil
 		} else {
 			// 只有真正的错误才记录日志并返回 SERVFAIL
 			h.opts.Logger.Warn("entry err", qCtx.InfoField(), zap.Error(err))
@@ -131,12 +134,21 @@ func (h *EntryHandler) Handle(ctx context.Context, q *dns.Msg, serverMeta server
 			resp.Rcode = dns.RcodeServerFailure
 		}
 		// [修改结束]
-	} 
-	
+	}
+
 	// 注意：上面的 if err != nil 块如果被 ErrExit 绕过了（err被置为nil），
 	// 这里 resp 依然是 nil，需要从 qCtx 获取
 	if resp == nil {
 		resp = qCtx.R()
+	}
+	if resp == nil {
+		if rawResp := qCtx.RawResponse(); len(rawResp) > 0 {
+			payload, rawErr := h.packRawResponse(qCtx, q, rawResp, packMsgPayload)
+			if rawErr == nil {
+				return payload
+			}
+			h.opts.Logger.Warn("failed to pack raw response, fallback to refused", qCtx.InfoField(), zap.Error(rawErr))
+		}
 	}
 
 	if resp == nil {
@@ -163,6 +175,69 @@ func (h *EntryHandler) Handle(ctx context.Context, q *dns.Msg, serverMeta server
 		return nil
 	}
 	return payload
+}
+
+func (h *EntryHandler) packRawResponse(
+	qCtx *query_context.Context,
+	q *dns.Msg,
+	rawResp []byte,
+	packMsgPayload func(m *dns.Msg) (*[]byte, error),
+) (*[]byte, error) {
+	if len(rawResp) < 12 {
+		return nil, fmt.Errorf("invalid raw response length %d", len(rawResp))
+	}
+
+	needMsgPath := false
+	if qCtx.RespOpt() != nil {
+		needMsgPath = true
+	}
+	if qCtx.ServerMeta.FromUDP {
+		udpSize := getValidUDPSize(qCtx.ClientOpt())
+		if len(rawResp) > udpSize {
+			needMsgPath = true
+		}
+	}
+
+	if needMsgPath {
+		m := new(dns.Msg)
+		if err := m.Unpack(rawResp); err != nil {
+			return nil, fmt.Errorf("failed to unpack raw response: %w", err)
+		}
+		m.Id = q.Id
+		m.RecursionAvailable = true
+
+		if respOpt := qCtx.RespOpt(); respOpt != nil {
+			m.Extra = append(m.Extra, respOpt)
+		}
+		if qCtx.ServerMeta.FromUDP {
+			m.Truncate(getValidUDPSize(qCtx.ClientOpt()))
+		}
+
+		return packMsgPayload(m)
+	}
+
+	// Fast path: copy wire bytes and patch ID/RA only.
+	streamTransport := !qCtx.ServerMeta.FromUDP && len(qCtx.ServerMeta.UrlPath) == 0
+	if streamTransport {
+		if len(rawResp) > dns.MaxMsgSize {
+			return nil, fmt.Errorf("raw response length %d is larger than max dns msg size", len(rawResp))
+		}
+
+		payload := pool.GetBuf(2 + len(rawResp))
+		binary.BigEndian.PutUint16((*payload)[:2], uint16(len(rawResp)))
+		copy((*payload)[2:], rawResp)
+		(*payload)[2] = byte(q.Id >> 8)
+		(*payload)[3] = byte(q.Id)
+		(*payload)[5] |= 0x80 // RA bit
+		return payload, nil
+	}
+
+	payload := pool.GetBuf(len(rawResp))
+	copy(*payload, rawResp)
+	(*payload)[0] = byte(q.Id >> 8)
+	(*payload)[1] = byte(q.Id)
+	(*payload)[3] |= 0x80 // RA bit
+	return payload, nil
 }
 
 // opt can be nil.

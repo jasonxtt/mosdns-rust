@@ -58,6 +58,7 @@ type Context struct {
 	clientOpt  *dns.OPT // may be nil
 
 	resp        *dns.Msg
+	rawResp     []byte   // Optional pre-packed DNS response payload (without TCP length prefix).
 	respOpt     *dns.OPT // nil if clientOpt == nil
 	upstreamOpt *dns.OPT // may be nil
 
@@ -175,6 +176,7 @@ func (ctx *Context) ClientOpt() *dns.OPT {
 // If m is nil. It removes existing response.
 func (ctx *Context) SetResponse(m *dns.Msg) {
 	ctx.resp = m
+	ctx.rawResp = nil
 	if m == nil {
 		ctx.upstreamOpt = nil
 	} else {
@@ -182,11 +184,24 @@ func (ctx *Context) SetResponse(m *dns.Msg) {
 	}
 }
 
+// SetRawResponse sets pre-packed DNS response payload (without TCP length prefix).
+// It takes the ownership of payload.
+func (ctx *Context) SetRawResponse(payload []byte) {
+	ctx.rawResp = payload
+	ctx.resp = nil
+	ctx.upstreamOpt = nil
+}
+
 // R returns the response that will be sent to client. It might be nil.
 // Note: R does not have EDNS0. Caller MUST NOT add a dns.OPT into R.
 // Use RespOpt() instead.
 func (ctx *Context) R() *dns.Msg {
 	return ctx.resp
+}
+
+// RawResponse returns pre-packed DNS response payload if present.
+func (ctx *Context) RawResponse() []byte {
+	return ctx.rawResp
 }
 
 // RespOpt returns the OPT that will be sent to client.
@@ -232,6 +247,9 @@ func (ctx *Context) CopyTo(d *Context) *Context {
 
 	if ctx.resp != nil {
 		d.resp = ctx.resp.Copy()
+	}
+	if len(ctx.rawResp) > 0 {
+		d.rawResp = append(d.rawResp[:0], ctx.rawResp...)
 	}
 	if ctx.respOpt != nil {
 		d.respOpt = dns.Copy(ctx.respOpt).(*dns.OPT)

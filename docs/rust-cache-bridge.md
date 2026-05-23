@@ -42,6 +42,7 @@ Optional transition flag:
 - Rust cache `lookup/store` is wired through C ABI and integrated into Go cache hot path.
 - Rust cache also provides key-based C ABI (`lookup_by_key` / `store_by_key`), and Go rust-mode path now uses prebuilt query keys to reduce repeated query parsing overhead.
 - Rust mode now uses the same local Go L1 hot cache fast-path before cgo lookup, reducing Rust<->Go crossing on repeated cache hits.
+- Rust cache hits are now returned as raw DNS wire payload into query context; entry handler has a raw fast-path (ID/RA patching + direct write), and only falls back to Msg unpack/pack when EDNS response OPT/truncation adjustments are required.
 - Go cache remains as fallback when Rust initialization or Rust calls fail.
 - Rust cache `flush` is wired through C ABI.
 - Rust dump export/import is wired through C ABI and used by Go `dumpCache/loadDump` in rust mode.
