@@ -4,7 +4,6 @@ go 1.26.1
 
 require (
 	github.com/IrineSistiana/go-bytes-pool v0.0.0-20230918115058-c72bd9761c57
-	github.com/cilium/ebpf v0.20.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
@@ -12,8 +11,7 @@ require (
 	github.com/klauspost/compress v1.18.5
 	github.com/miekg/dns v1.1.72
 	github.com/prometheus/client_golang v1.23.2
-	github.com/quic-go/quic-go v0.59.0
-	github.com/robfig/cron/v3 v3.0.1
+	github.com/quic-go/quic-go v0.59.1
 	github.com/sagernet/sing v0.6.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
@@ -42,6 +40,7 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
