@@ -1,0 +1,14 @@
+[package]
+name = "mosdns_cache_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mosdns_cache_core"
+crate-type = ["staticlib"]
+
+[dependencies]
+hickory-proto = "0.25"
+ipnet = "2.10"
+prost = "0.13"
+flate2 = "1.0"
